@@ -4,6 +4,9 @@ import ctypes
 import datetime
 import threading
 import os
+import pytesseract
+import subprocess
+import pygetwindow
 
 current_folder = os.getcwd()
 Donate_Button = os.path.join(current_folder, 'Donate_Button.png')
@@ -19,7 +22,43 @@ GoBack = os.path.join(current_folder, 'GoBack.png')
 TotalDonations = 0
 Resetting = False
 SecondsToReset = 0
-ResetEverySeconds = 600 #15 mins
+ResetEverySeconds = 600 #10 mins
+Uptime = 0
+
+FullResetEverySeconds = 3600
+SecondsToFullReset = 0
+
+def ReadChat(txt):
+    left = 355
+    top = 780
+    width = 920 - left
+    height = 860 - top
+    screen_image = pyautogui.screenshot()
+    target_image = screen_image.crop((left, top, left + width, top + height))
+    text = pytesseract.image_to_string(target_image)
+    if (txt in text):
+        if ('Leader' in text) or ('leader' in text):
+            return True
+        else:
+            return False
+
+def ReadGems():
+    left = 1700
+    top = 370
+    width = 1795 - left
+    height = 400 - top
+    screen_image = pyautogui.screenshot()
+    target_image = screen_image.crop((left, top, left + width, top + height))
+    text = pytesseract.image_to_string(target_image)
+    clean_text = text.strip()
+    return clean_text
+
+def SendChat(txt):
+    pyautogui.click(870, 930)
+    time.sleep(3)
+    pyautogui.typewrite(txt)
+    time.sleep(0.5)
+    pyautogui.press('enter')
 
 def resetclash():
     global Resetting
@@ -54,15 +93,27 @@ def run_resetclash_periodically():
     global SecondsToReset
     global ResetEverySeconds
     global TotalDonations
+    global Uptime
     SecondsToReset = ResetEverySeconds
     while True:
         for i in range(ResetEverySeconds):
             time.sleep(1)
+            Uptime +=1
             SecondsToReset -=1
             title("Waiting for new donations - Total: " + str(TotalDonations) + " - Time To Reset: " + str(SecondsToReset) + " Seconds")
-
         resetclash()
         SecondsToReset = ResetEverySeconds
+
+def FullResetClash():
+    global SecondsToFullReset
+    global FullResetEverySeconds
+    SecondsToFullReset = FullResetEverySeconds
+    while True:
+        for i in range(FullResetEverySeconds):
+            time.sleep(1)
+            SecondsToFullReset -=1
+        ResetBlueStacks()
+        SecondsToFullReset = FullResetEverySeconds
 
 def gettime():
     current_time = datetime.datetime.now()
@@ -109,11 +160,55 @@ def FindQuickDonateButton():
         time.sleep(1)
         FindGreenPart()
 
+def ResetBlueStacks():
+    Resetting = True
+    subprocess.call(["taskkill", "/F", "/IM", "HD-Player.exe"])
+    time.sleep(2)
+
+    subprocess.Popen("C:\Program Files\BlueStacks_nxt\HD-Player.exe")
+    time.sleep(4)
+    window = pygetwindow.getWindowsWithTitle("BlueStacks App Player")[0]
+    window.activate()
+    window.resizeTo(244, 152)
+    hwnd = window._hWnd
+    ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0001)
+    time.sleep(1)
+    pyautogui.click(161, 16)
+
+    time.sleep(5)
+    resetclash()
+
 def FindDonateButton():
     global TotalDonations
     global Resetting
     global ResetEverySeconds
+    global Uptime
+    global SecondsToReset
+    global SecondsToFullReset
     if Resetting == False:
+        if ReadChat("Uptime"):
+            SendChat("Total uptime: " + str(Uptime) + " seconds")
+
+        if ReadChat("Donations"):
+            SendChat("Total donations: " + str(TotalDonations))
+
+        if ReadChat("Gems"):
+            SendChat("Total gems left: " + ReadGems())
+
+        if ReadChat("Soft Reset Time"):
+            SendChat("Resetting in " + str(SecondsToReset) + " seconds")
+
+        if ReadChat("Reset Clash"):
+            SendChat("Resetting Clash of Clans")
+            resetclash()
+
+        if ReadChat("Full Reset Time"):
+            SendChat("Full Reset is in " + str(SecondsToFullReset) + " seconds")
+
+        if ReadChat("Hard Reset"):
+            SendChat("Completely resetting")
+            ResetBlueStacks()
+
         if pyautogui.locateOnScreen(ClashIcon, grayscale=False, confidence=0.8) is not None:
             resetclash()
         if pyautogui.locateOnScreen(Anyonethere, grayscale=False, confidence=0.8) is not None: 
@@ -141,6 +236,10 @@ def FindDonateButton():
 resetclash_thread = threading.Thread(target=run_resetclash_periodically)
 resetclash_thread.start()
 
-while True:
+resetclash_threadF = threading.Thread(target=FullResetClash)
+resetclash_threadF.start()
+
+while True: 
+    #pyautogui.displayMousePosition() #(1700, 370) (1795, 400)
     FindDonateButton()
     time.sleep(2)
